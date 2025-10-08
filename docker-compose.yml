@@ -1,0 +1,84 @@
+# ============================================================================
+# Docker Compose - Selenium Test Framework
+# ============================================================================
+# Usage:
+#   docker-compose up                    # Build and run tests
+#   docker-compose run tests pytest -m smoke  # Run specific commands
+#   docker-compose down                  # Stop and remove containers
+# ============================================================================
+
+version: '3.8'
+
+services:
+  # ========================================
+  # Main Test Runner Service
+  # ========================================
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: selenium-tests
+
+    # Environment variables (override with .env file)
+    environment:
+      # Test environment
+      - TEST_ENV=${TEST_ENV:-dev}
+
+      # Dev environment
+      - DEV_BASE_URL=${DEV_BASE_URL}
+      - DEV_TEST_EMAIL=${DEV_TEST_EMAIL}
+      - DEV_TEST_PASSWORD=${DEV_TEST_PASSWORD}
+
+      # Staging environment (optional)
+      - STAGING_BASE_URL=${STAGING_BASE_URL:-}
+      - STAGING_TEST_EMAIL=${STAGING_TEST_EMAIL:-}
+      - STAGING_TEST_PASSWORD=${STAGING_TEST_PASSWORD:-}
+
+      # Production environment (optional)
+      - PROD_BASE_URL=${PROD_BASE_URL:-}
+      - PROD_TEST_EMAIL=${PROD_TEST_EMAIL:-}
+      - PROD_TEST_PASSWORD=${PROD_TEST_PASSWORD:-}
+
+      # Additional config
+      - TEST_EMAIL=${DEV_TEST_EMAIL}
+      - TEST_PASSWORD=${DEV_TEST_PASSWORD}
+
+    # Volume mounts (sync code and preserve reports)
+    volumes:
+      # Mount source code (for live development)
+      - .:/app
+
+      # Preserve reports on host
+      - ./reports:/app/reports
+
+      # Preserve screenshots on host
+      - ./screenshots:/app/screenshots
+
+    # Shared memory size (important for Chrome stability)
+    shm_size: 2gb
+
+    # Default command (override with: docker-compose run tests <command>)
+    command: >
+      pytest
+      --browser=chrome
+      --env=dev
+      --headless
+      -v
+      --tb=short
+
+    # Network mode
+    network_mode: bridge
+
+# ============================================================================
+# Additional Configurations
+# ============================================================================
+
+# Named volumes (optional - for caching)
+volumes:
+  pip-cache:
+    driver: local
+
+# Networks (optional - for future multi-container setups)
+networks:
+  default:
+    driver: bridge

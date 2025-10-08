@@ -51,6 +51,31 @@
 
 ## 🚀 Quick Start (5 minutos)
 
+### **Opción A: Docker (Recomendado - Setup en 2 minutos) 🐳**
+
+```bash
+# 1. Clonar el repositorio
+git clone https://github.com/daniellarry12/python-selenium-model-framework.git
+cd python-selenium-model-framework
+
+# 2. Ejecutar con Docker Compose
+docker-compose up
+
+# ¡Eso es todo! ✅
+# Tests corren automáticamente con Chrome en modo headless
+```
+
+**Ventajas de Docker:**
+- ✅ **Zero setup** - No instalar Python, Chrome, ni dependencias
+- ✅ **100% consistente** - Mismo ambiente en todos lados
+- ✅ **Aislado** - No afecta tu sistema
+
+📖 **[Guía completa de Docker →](DOCKER.md)**
+
+---
+
+### **Opción B: Instalación Local (Python nativo)**
+
 ### 1. **Clonar el repositorio**
 ```bash
 git clone https://github.com/daniellarry12/python-selenium-model-framework.git
@@ -865,6 +890,7 @@ def pytest_runtest_makereport(item):
 - [x] Parametrized tests
 - [x] Factory Pattern para drivers
 - [x] Explicit Waits (cero time.sleep)
+- [x] Docker containerization (Docker + Docker Compose)
 
 ### 🚧 **En Progreso**
 - [ ] Allure Reports integration
@@ -873,7 +899,7 @@ def pytest_runtest_makereport(item):
 - [ ] Performance metrics
 
 ### 🔮 **Roadmap Futuro**
-- [ ] Docker containerization
+- [ ] Selenium Grid (multi-browser paralelo)
 - [ ] Kubernetes deployment
 - [ ] Cross-browser cloud (BrowserStack/Sauce Labs)
 - [ ] AI-powered self-healing locators

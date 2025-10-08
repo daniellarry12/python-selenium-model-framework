@@ -1,0 +1,129 @@
+# ============================================================================
+# .dockerignore - Exclude files from Docker build context
+# ============================================================================
+# Purpose: Reduce image size and build time by excluding unnecessary files
+# ============================================================================
+
+# ============================================
+# Python
+# ============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+develop-eggs/
+.installed.cfg
+MANIFEST
+
+# ============================================
+# Virtual Environments
+# ============================================
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# ============================================
+# Testing & Reports
+# ============================================
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.log
+reports/
+screenshots/
+allure-results/
+allure-report/
+
+# ============================================
+# IDE & Editors
+# ============================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# ============================================
+# Git
+# ============================================
+.git/
+.gitignore
+.gitattributes
+
+# ============================================
+# Environment & Secrets
+# ============================================
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ============================================
+# Docker
+# ============================================
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# ============================================
+# Documentation
+# ============================================
+README.md
+CONTRIBUTING.md
+LICENSE
+CHANGELOG.md
+docs/
+*.md
+
+# ============================================
+# CI/CD
+# ============================================
+.github/
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+
+# ============================================
+# OS & Temporary Files
+# ============================================
+.DS_Store
+Thumbs.db
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+
+# ============================================
+# Project Specific
+# ============================================
+FirstPartTutorial/
+ScreensClaude/
+node_modules/

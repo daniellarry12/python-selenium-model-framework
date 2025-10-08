@@ -46,20 +46,35 @@ class TestLogin(BaseTest):
         expected_title = "My Account"
         expected_url_fragment = "account/account"
 
-        # Act
+        # Act - with debug logging
+        print(f"DEBUG: Using email: {TestData.email}")
+        print(f"DEBUG: Using password: {'*' * len(TestData.password)}")
         login_page.set_email_address(TestData.email)
         login_page.set_password(TestData.password)
         my_account_page = login_page.click_login_button()
 
+        # Debug: Check if we're still on login page (warning displayed)
+        import time
+        time.sleep(2)  # Give time for any warning to appear
+
+        if login_page.is_warning_message_displayed(timeout=2):
+            warning = login_page.get_warning_message()
+            print(f"DEBUG: Warning message appeared: {warning}")
+
         # Assert - Multiple validations for robust verification
         actual_title = my_account_page.get_title()
+        actual_url = my_account_page.get_current_url()
+
+        print(f"DEBUG: Actual title: {actual_title}")
+        print(f"DEBUG: Actual URL: {actual_url}")
+
         assert actual_title == expected_title, (
-            f"Expected title '{expected_title}' but got '{actual_title}'"
+            f"Expected title '{expected_title}' but got '{actual_title}'. "
+            f"URL: {actual_url}"
         )
 
         # Verify URL changed to account page (explicit wait built-in)
         my_account_page.wait_for_url_contains(expected_url_fragment, timeout=10)
-        actual_url = my_account_page.get_current_url()
         assert expected_url_fragment in actual_url, (
             f"Expected URL to contain '{expected_url_fragment}' but got '{actual_url}'"
         )

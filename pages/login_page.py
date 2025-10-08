@@ -31,6 +31,10 @@ class LoginPage(BasePage):
 
     def get_warning_message(self):
         return self.get_text(self.warning_message)
+
+    def is_warning_message_displayed(self, timeout=5):
+        """Check if warning message is visible."""
+        return self.is_displayed(self.warning_message, timeout=timeout)
     
     
 

@@ -341,7 +341,7 @@ class BasePage:
         Check if element is visible (non-blocking).
 
         Args:
-            locator: (By.STRATEGY, "value")
+            locator: (By.STRATEGY, "value") or By.STRATEGY, "value"
             timeout: Wait timeout (default: 5s)
 
         Returns:
@@ -350,10 +350,18 @@ class BasePage:
         Example:
             if self.is_displayed(*self.error_message):
                 print("Error occurred")
+            if self.is_displayed(self.error_message):
+                print("Error occurred")
         """
+        # Handle both calling styles
+        if len(locator) == 1 and isinstance(locator[0], tuple):
+            final_locator = locator[0]
+        else:
+            final_locator = locator
+
         try:
             wait = WebDriverWait(self.driver, timeout)
-            element = wait.until(EC.presence_of_element_located(locator))
+            element = wait.until(EC.presence_of_element_located(final_locator))
             return element.is_displayed()
         except TimeoutException:
             return False

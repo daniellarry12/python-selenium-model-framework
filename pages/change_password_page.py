@@ -15,7 +15,23 @@ class ChangePasswordPage(BasePage):
         return MyAccountPage(self.driver)
     
     def get_confirmation_error_message(self):
+        """Get the password confirmation error message text."""
         return self.get_text(self.locate.confirmation_error_message)
+
+    def is_confirmation_error_displayed(self, timeout=5):
+        """
+        Check if password confirmation error is visible.
+
+        Uses explicit wait from BasePage - waits up to timeout seconds
+        for element to appear instead of failing immediately.
+
+        Args:
+            timeout: Max seconds to wait for error message
+
+        Returns:
+            True if error is visible, False otherwise
+        """
+        return self.is_displayed(self.locate.confirmation_error_message, timeout=timeout)
        
 
     

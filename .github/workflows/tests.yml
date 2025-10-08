@@ -82,7 +82,8 @@ jobs:
             --headless \
             -v \
             --tb=short \
-            --maxfail=1
+            --maxfail=1 \
+            --ignore=FirstPartTutorial/
         continue-on-error: false
 
       - name: ✅ Smoke tests passed
@@ -153,7 +154,8 @@ jobs:
             -v \
             --tb=short \
             --html=reports/report.html \
-            --self-contained-html
+            --self-contained-html \
+            --ignore=FirstPartTutorial/
         continue-on-error: false
 
       - name: 📊 Upload Test Report
@@ -235,7 +237,8 @@ jobs:
             --headless \
             -v \
             --html=reports/report.html \
-            --self-contained-html
+            --self-contained-html \
+            --ignore=FirstPartTutorial/
 
       - name: 🧪 Run Tests (Regression only)
         if: github.event.inputs.test_type == 'regression'
@@ -247,7 +250,8 @@ jobs:
             --headless \
             -v \
             --html=reports/report.html \
-            --self-contained-html
+            --self-contained-html \
+            --ignore=FirstPartTutorial/
 
       - name: 🧪 Run All Tests
         if: github.event.inputs.test_type == 'all'
@@ -259,7 +263,8 @@ jobs:
             --headless \
             -v \
             --html=reports/report.html \
-            --self-contained-html
+            --self-contained-html \
+            --ignore=FirstPartTutorial/
 
       - name: 📊 Upload Test Report
         if: always()

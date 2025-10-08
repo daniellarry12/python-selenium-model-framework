@@ -1,11 +1,11 @@
-name: Automated Tests
+name: Automated Tests CI/CD
 
 on:
   push:
     branches: [ main, develop ]
   pull_request:
-    branches: [ main, develop ]
-  workflow_dispatch:  # Manual trigger - puedes elegir ambiente
+    branches: [ main ]
+  workflow_dispatch:  # Manual trigger with custom options
     inputs:
       environment:
         description: 'Environment to test'
@@ -25,84 +25,261 @@ on:
           - chrome
           - firefox
           - all
+      test_type:
+        description: 'Test type to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - smoke
+          - regression
+          - all
 
 jobs:
-  test:
+  # Job 1: Fast smoke tests (runs first)
+  smoke-tests:
+    name: Smoke Tests - ${{ matrix.browser }}
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
 
     strategy:
       fail-fast: false
       matrix:
-        # Por ahora solo dev y chrome en automático
-        # Cuando tengas staging/prod, agrega aquí: environment: [dev, staging]
+        browser: [chrome]
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 🌐 Setup Chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: 🔧 Create .env file
+        run: |
+          echo "TEST_ENV=dev" > .env
+          echo "DEV_BASE_URL=${{ secrets.DEV_BASE_URL }}" >> .env
+          echo "DEV_TEST_EMAIL=${{ secrets.DEV_TEST_EMAIL }}" >> .env
+          echo "DEV_TEST_PASSWORD=${{ secrets.DEV_TEST_PASSWORD }}" >> .env
+
+      - name: 🧪 Run Smoke Tests
+        run: |
+          pytest -m smoke \
+            --browser=chrome \
+            --env=dev \
+            --headless \
+            -v \
+            --tb=short \
+            --maxfail=1
+        continue-on-error: false
+
+      - name: ✅ Smoke tests passed
+        if: success()
+        run: echo "✅ Smoke tests passed successfully!"
+
+  # Job 2: Full test suite (runs after smoke tests pass)
+  full-tests:
+    name: Full Tests - ${{ matrix.browser }} - ${{ matrix.environment }}
+    runs-on: ubuntu-latest
+    needs: smoke-tests
+    if: success()
+
+    strategy:
+      fail-fast: false
+      matrix:
         environment: [dev]
         browser: [chrome]
 
     steps:
-      - name: Checkout code
+      - name: 📥 Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: 🐍 Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
 
-      - name: Cache pip dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements-lock.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      - name: Install dependencies
+      - name: 📦 Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-lock.txt
+          pip install -r requirements.txt
+          pip install pytest-html  # For HTML reports
 
-      - name: Install browser dependencies
+      - name: 🌐 Setup Chrome
+        if: matrix.browser == 'chrome'
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: 🦊 Setup Firefox
+        if: matrix.browser == 'firefox'
+        uses: browser-actions/setup-firefox@v1
+        with:
+          firefox-version: latest
+
+      - name: 🔧 Create .env file
         run: |
-          # Chrome is pre-installed on ubuntu-latest
-          if [ "${{ matrix.browser }}" = "firefox" ]; then
+          echo "TEST_ENV=${{ matrix.environment }}" > .env
+          echo "DEV_BASE_URL=${{ secrets.DEV_BASE_URL }}" >> .env
+          echo "DEV_TEST_EMAIL=${{ secrets.DEV_TEST_EMAIL }}" >> .env
+          echo "DEV_TEST_PASSWORD=${{ secrets.DEV_TEST_PASSWORD }}" >> .env
+          echo "STAGING_BASE_URL=${{ secrets.STAGING_BASE_URL || secrets.DEV_BASE_URL }}" >> .env
+          echo "STAGING_TEST_EMAIL=${{ secrets.STAGING_TEST_EMAIL || secrets.DEV_TEST_EMAIL }}" >> .env
+          echo "STAGING_TEST_PASSWORD=${{ secrets.STAGING_TEST_PASSWORD || secrets.DEV_TEST_PASSWORD }}" >> .env
+          echo "PROD_BASE_URL=${{ secrets.PROD_BASE_URL || secrets.DEV_BASE_URL }}" >> .env
+          echo "PROD_TEST_EMAIL=${{ secrets.PROD_TEST_EMAIL || secrets.DEV_TEST_EMAIL }}" >> .env
+          echo "PROD_TEST_PASSWORD=${{ secrets.PROD_TEST_PASSWORD || secrets.DEV_TEST_PASSWORD }}" >> .env
+
+      - name: 🧪 Run All Tests
+        run: |
+          mkdir -p reports
+          pytest tests/ \
+            --browser=${{ matrix.browser }} \
+            --env=${{ matrix.environment }} \
+            --headless \
+            -v \
+            --tb=short \
+            --html=reports/report.html \
+            --self-contained-html
+        continue-on-error: false
+
+      - name: 📊 Upload Test Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-${{ matrix.browser }}-${{ matrix.environment }}
+          path: reports/
+          retention-days: 30
+
+      - name: 📝 Test Summary
+        if: always()
+        run: |
+          echo "## 🧪 Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Browser | ${{ matrix.browser }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | ${{ matrix.environment }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📥 Download the full HTML report from the artifacts section." >> $GITHUB_STEP_SUMMARY
+
+  # Job 3: Manual multi-browser testing
+  manual-tests:
+    name: Manual - ${{ github.event.inputs.browser }} - ${{ github.event.inputs.environment }}
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest-html pytest-xdist  # Parallel execution
+
+      - name: 🌐 Setup Browsers
+        run: |
+          if [ "${{ github.event.inputs.browser }}" == "chrome" ] || [ "${{ github.event.inputs.browser }}" == "all" ]; then
+            wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+            sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
+            sudo apt-get update
+            sudo apt-get install -y google-chrome-stable
+          fi
+          if [ "${{ github.event.inputs.browser }}" == "firefox" ] || [ "${{ github.event.inputs.browser }}" == "all" ]; then
             sudo apt-get update
             sudo apt-get install -y firefox
           fi
 
-      - name: Set environment variables for dev
-        if: matrix.environment == 'dev'
+      - name: 🔧 Create .env file
         run: |
-          echo "DEV_BASE_URL=${{ secrets.DEV_BASE_URL }}" >> $GITHUB_ENV
-          echo "DEV_API_URL=${{ secrets.DEV_API_URL }}" >> $GITHUB_ENV
-          echo "DEV_TEST_EMAIL=${{ secrets.DEV_TEST_EMAIL }}" >> $GITHUB_ENV
-          echo "DEV_TEST_PASSWORD=${{ secrets.DEV_TEST_PASSWORD }}" >> $GITHUB_ENV
+          echo "TEST_ENV=${{ github.event.inputs.environment }}" > .env
+          echo "DEV_BASE_URL=${{ secrets.DEV_BASE_URL }}" >> .env
+          echo "DEV_TEST_EMAIL=${{ secrets.DEV_TEST_EMAIL }}" >> .env
+          echo "DEV_TEST_PASSWORD=${{ secrets.DEV_TEST_PASSWORD }}" >> .env
+          echo "STAGING_BASE_URL=${{ secrets.STAGING_BASE_URL || secrets.DEV_BASE_URL }}" >> .env
+          echo "STAGING_TEST_EMAIL=${{ secrets.STAGING_TEST_EMAIL || secrets.DEV_TEST_EMAIL }}" >> .env
+          echo "STAGING_TEST_PASSWORD=${{ secrets.STAGING_TEST_PASSWORD || secrets.DEV_TEST_PASSWORD }}" >> .env
+          echo "PROD_BASE_URL=${{ secrets.PROD_BASE_URL || secrets.DEV_BASE_URL }}" >> .env
+          echo "PROD_TEST_EMAIL=${{ secrets.PROD_TEST_EMAIL || secrets.DEV_TEST_EMAIL }}" >> .env
+          echo "PROD_TEST_PASSWORD=${{ secrets.PROD_TEST_PASSWORD || secrets.DEV_TEST_PASSWORD }}" >> .env
 
-      - name: Set environment variables for staging
-        if: matrix.environment == 'staging'
+      - name: 🧪 Run Tests (Smoke only)
+        if: github.event.inputs.test_type == 'smoke'
         run: |
-          echo "STAGING_BASE_URL=${{ secrets.STAGING_BASE_URL }}" >> $GITHUB_ENV
-          echo "STAGING_API_URL=${{ secrets.STAGING_API_URL }}" >> $GITHUB_ENV
-          echo "STAGING_TEST_EMAIL=${{ secrets.STAGING_TEST_EMAIL }}" >> $GITHUB_ENV
-          echo "STAGING_TEST_PASSWORD=${{ secrets.STAGING_TEST_PASSWORD }}" >> $GITHUB_ENV
+          mkdir -p reports
+          pytest -m smoke \
+            --browser=${{ github.event.inputs.browser }} \
+            --env=${{ github.event.inputs.environment }} \
+            --headless \
+            -v \
+            --html=reports/report.html \
+            --self-contained-html
 
-      - name: Set environment variables for prod
-        if: matrix.environment == 'prod'
+      - name: 🧪 Run Tests (Regression only)
+        if: github.event.inputs.test_type == 'regression'
         run: |
-          echo "PROD_BASE_URL=${{ secrets.PROD_BASE_URL }}" >> $GITHUB_ENV
-          echo "PROD_API_URL=${{ secrets.PROD_API_URL }}" >> $GITHUB_ENV
-          echo "PROD_TEST_EMAIL=${{ secrets.PROD_TEST_EMAIL }}" >> $GITHUB_ENV
-          echo "PROD_TEST_PASSWORD=${{ secrets.PROD_TEST_PASSWORD }}" >> $GITHUB_ENV
+          mkdir -p reports
+          pytest -m regression \
+            --browser=${{ github.event.inputs.browser }} \
+            --env=${{ github.event.inputs.environment }} \
+            --headless \
+            -v \
+            --html=reports/report.html \
+            --self-contained-html
 
-      - name: Run tests
+      - name: 🧪 Run All Tests
+        if: github.event.inputs.test_type == 'all'
         run: |
-          pytest --env=${{ matrix.environment }} --browser=${{ matrix.browser }} --headless -v --tb=short
-        continue-on-error: false
+          mkdir -p reports
+          pytest tests/ \
+            --browser=${{ github.event.inputs.browser }} \
+            --env=${{ github.event.inputs.environment }} \
+            --headless \
+            -v \
+            --html=reports/report.html \
+            --self-contained-html
 
-      - name: Upload test artifacts on failure
-        if: failure()
+      - name: 📊 Upload Test Report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-artifacts-${{ matrix.environment }}-${{ matrix.browser }}
-          path: |
-            *.log
-            screenshots/
-          retention-days: 7
+          name: manual-test-report-${{ github.event.inputs.browser }}-${{ github.event.inputs.environment }}
+          path: reports/
+          retention-days: 30
+
+  # Job 4: Test status notification
+  notify:
+    name: Notify Results
+    runs-on: ubuntu-latest
+    needs: [smoke-tests, full-tests]
+    if: always()
+
+    steps:
+      - name: 📢 Build Status
+        run: |
+          echo "## 🎉 CI/CD Pipeline Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All tests have completed." >> $GITHUB_STEP_SUMMARY
+          echo "Check individual job results above." >> $GITHUB_STEP_SUMMARY

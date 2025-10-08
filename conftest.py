@@ -221,7 +221,22 @@ class BrowserFactory:
         }
         options.add_experimental_option("prefs", prefs)
 
-        return webdriver.Chrome(options=options)
+        # Check if running in Docker with chromium-driver installed
+        import shutil
+        from selenium.webdriver.chrome.service import Service
+
+        chromium_driver = shutil.which("chromedriver")
+        if chromium_driver:
+            # Use system chromedriver (Docker environment)
+            service = Service(executable_path=chromium_driver)
+            # Set binary location for Chromium
+            chromium_binary = shutil.which("chromium")
+            if chromium_binary:
+                options.binary_location = chromium_binary
+            return webdriver.Chrome(service=service, options=options)
+        else:
+            # Use Selenium Manager (local environment)
+            return webdriver.Chrome(options=options)
 
     @staticmethod
     def _create_firefox(headless: bool) -> WebDriver:

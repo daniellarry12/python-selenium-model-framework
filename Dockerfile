@@ -49,15 +49,13 @@ RUN apt-get update && apt-get install -y \
     # Clean up
     && rm -rf /var/lib/apt/lists/*
 
-# Install Google Chrome (stable)
-RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list \
-    && apt-get update \
-    && apt-get install -y google-chrome-stable \
+# Install Chromium (supports both amd64 and arm64)
+RUN apt-get update \
+    && apt-get install -y chromium chromium-driver \
     && rm -rf /var/lib/apt/lists/*
 
-# Verify Chrome installation
-RUN google-chrome --version
+# Verify Chromium installation
+RUN chromium --version
 
 # Set working directory
 WORKDIR /app

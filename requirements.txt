@@ -1,0 +1,45 @@
+# ===================================
+# Core Dependencies - Production
+# ===================================
+
+# Selenium WebDriver - Browser automation
+selenium==4.35.0
+
+# Environment variables management
+python-dotenv==1.1.1
+
+
+# ===================================
+# Testing Framework & Plugins
+# ===================================
+
+# Pytest - Testing framework
+pytest==8.4.2
+
+# Pytest plugins
+pytest-metadata==3.1.1          # Add metadata to test reports
+
+# Allure reporting
+allure-pytest==2.15.0
+
+
+# ===================================
+# Optional Dependencies (commented)
+# ===================================
+
+# HTML Reports - Uncomment if needed
+# pytest-html==4.1.0
+
+# Parallel test execution - Uncomment if needed
+# pytest-xdist==3.5.0
+
+# Screenshot utilities - Uncomment if needed
+# Pillow>=10.0.0
+
+
+# ===================================
+# Notes:
+# ===================================
+# Install: pip install -r requirements.txt
+# Update: pip install --upgrade -r requirements.txt
+# Freeze: pip freeze > requirements-lock.txt

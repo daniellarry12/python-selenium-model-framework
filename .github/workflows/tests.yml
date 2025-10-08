@@ -1,0 +1,70 @@
+name: Automated Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:  # Allows manual trigger from GitHub UI
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false  # Continue running other jobs even if one fails
+      matrix:
+        browser: [chrome, firefox]
+        environment: [dev]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements-lock.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # Use lock file for exact reproducibility in CI/CD
+          pip install -r requirements-lock.txt
+
+      - name: Install browser dependencies
+        run: |
+          # Chrome is pre-installed on ubuntu-latest
+          if [ "${{ matrix.browser }}" = "firefox" ]; then
+            sudo apt-get update
+            sudo apt-get install -y firefox
+          fi
+
+      - name: Set environment variables
+        run: |
+          echo "BASE_URL=${{ secrets.BASE_URL }}" >> $GITHUB_ENV
+          echo "TEST_EMAIL=${{ secrets.TEST_EMAIL }}" >> $GITHUB_ENV
+          echo "TEST_PASSWORD=${{ secrets.TEST_PASSWORD }}" >> $GITHUB_ENV
+
+      - name: Run tests
+        run: |
+          pytest --browser=${{ matrix.browser }} -v --tb=short
+        continue-on-error: false
+
+      - name: Upload test artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-artifacts-${{ matrix.browser }}-${{ matrix.environment }}
+          path: |
+            *.log
+            screenshots/
+          retention-days: 7

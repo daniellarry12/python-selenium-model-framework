@@ -1,0 +1,29 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyc
+
+# Pytest
+.pytest_cache/
+
+# Virtual environment
+venv/
+
+# Allure reports
+reports/
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+
+# Environment variables
+.env
+
+# Logs
+*.log
+geckodriver.log
+chromedriver.log
+
+# Screenshots (if you add them later)
+screenshots/

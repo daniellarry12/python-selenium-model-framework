@@ -73,6 +73,8 @@ jobs:
           echo "DEV_BASE_URL=${{ secrets.DEV_BASE_URL }}" >> .env
           echo "DEV_TEST_EMAIL=${{ secrets.DEV_TEST_EMAIL }}" >> .env
           echo "DEV_TEST_PASSWORD=${{ secrets.DEV_TEST_PASSWORD }}" >> .env
+          echo "TEST_EMAIL=${{ secrets.DEV_TEST_EMAIL }}" >> .env
+          echo "TEST_PASSWORD=${{ secrets.DEV_TEST_PASSWORD }}" >> .env
 
       - name: 🧪 Run Smoke Tests
         run: |
@@ -143,6 +145,8 @@ jobs:
           echo "PROD_BASE_URL=${{ secrets.PROD_BASE_URL || secrets.DEV_BASE_URL }}" >> .env
           echo "PROD_TEST_EMAIL=${{ secrets.PROD_TEST_EMAIL || secrets.DEV_TEST_EMAIL }}" >> .env
           echo "PROD_TEST_PASSWORD=${{ secrets.PROD_TEST_PASSWORD || secrets.DEV_TEST_PASSWORD }}" >> .env
+          echo "TEST_EMAIL=${{ secrets.DEV_TEST_EMAIL }}" >> .env
+          echo "TEST_PASSWORD=${{ secrets.DEV_TEST_PASSWORD }}" >> .env
 
       - name: 🧪 Run All Tests
         run: |
@@ -226,6 +230,8 @@ jobs:
           echo "PROD_BASE_URL=${{ secrets.PROD_BASE_URL || secrets.DEV_BASE_URL }}" >> .env
           echo "PROD_TEST_EMAIL=${{ secrets.PROD_TEST_EMAIL || secrets.DEV_TEST_EMAIL }}" >> .env
           echo "PROD_TEST_PASSWORD=${{ secrets.PROD_TEST_PASSWORD || secrets.DEV_TEST_PASSWORD }}" >> .env
+          echo "TEST_EMAIL=${{ secrets.DEV_TEST_EMAIL }}" >> .env
+          echo "TEST_PASSWORD=${{ secrets.DEV_TEST_PASSWORD }}" >> .env
 
       - name: 🧪 Run Tests (Smoke only)
         if: github.event.inputs.test_type == 'smoke'

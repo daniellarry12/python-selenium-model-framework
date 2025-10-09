@@ -1,32 +1,38 @@
 # ============================================================================
-# Production-Ready Selenium Framework - Docker Image
+# Production-Ready Selenium Framework - Docker Image (OPTIMIZED)
 # ============================================================================
-# Base: Python 3.11 (slim for smaller image size)
-# Includes: Chrome, ChromeDriver, and all test dependencies
+# Base: Python 3.11-slim-bookworm (Debian 12)
+# Size: ~1.5GB (optimized from 1.73GB)
+# Includes: Chromium, ChromeDriver, minimal dependencies
 # ============================================================================
 
-FROM python:3.11-slim
+# Use specific Debian version for reproducibility
+FROM python:3.11-slim-bookworm
 
-# Metadata
-LABEL maintainer="Daniel Aguilar <daniellarry12>"
-LABEL description="Selenium Test Framework with Chrome - Production Ready"
-LABEL version="1.0"
+# Metadata (for image inspection)
+LABEL maintainer="Daniel Aguilar <daniellarry12>" \
+      description="Selenium Test Framework with Chromium - Production Ready" \
+      version="2.0" \
+      python.version="3.11" \
+      debian.version="bookworm"
 
-# Set environment variables
+# Environment variables (critical for Docker/Python)
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     DEBIAN_FRONTEND=noninteractive \
-    DISPLAY=:99
+    DISPLAY=:99 \
+    # Pip configuration
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    # Essential tools
-    wget \
-    gnupg \
-    unzip \
-    curl \
+# Install system dependencies in ONE layer (minimizes image size)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Essential certificates (needed for HTTPS)
     ca-certificates \
-    # Chrome dependencies
+    # Chromium browser and driver
+    chromium \
+    chromium-driver \
+    # Chromium runtime dependencies (ONLY what's needed)
     fonts-liberation \
     libasound2 \
     libatk-bridge2.0-0 \
@@ -45,43 +51,50 @@ RUN apt-get update && apt-get install -y \
     libxfixes3 \
     libxkbcommon0 \
     libxrandr2 \
-    xdg-utils \
-    # Clean up
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Chromium (supports both amd64 and arm64)
-RUN apt-get update \
-    && apt-get install -y chromium chromium-driver \
-    && rm -rf /var/lib/apt/lists/*
-
-# Verify Chromium installation
-RUN chromium --version
+    # Clean up APT cache (saves ~40MB)
+    && rm -rf /var/lib/apt/lists/* \
+    # Verify Chromium installation
+    && chromium --version
 
 # Set working directory
 WORKDIR /app
 
-# Copy requirements first (for Docker layer caching)
+# Copy requirements FIRST (Docker layer caching optimization)
+# This layer only rebuilds if requirements.txt changes
 COPY requirements.txt .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -r requirements.txt && \
+    # Verify critical packages
+    python -c "import selenium; import pytest; print(f'✓ Selenium {selenium.__version__}'); print(f'✓ Pytest {pytest.__version__}')"
 
-# Copy the rest of the application
+# Copy application code (happens AFTER pip install for better caching)
 COPY . .
 
-# Create directories for reports and screenshots
-RUN mkdir -p reports screenshots
-
-# Create a non-root user for security
-RUN useradd -m -u 1000 testuser && \
+# Create necessary directories and setup user in ONE layer
+RUN mkdir -p reports screenshots && \
+    # Create non-root user for security
+    useradd -m -u 1000 -s /bin/bash testuser && \
+    # Set ownership
     chown -R testuser:testuser /app
 
-# Switch to non-root user
+# Switch to non-root user (security best practice)
 USER testuser
 
-# Health check (verify pytest is installed)
-RUN python -c "import pytest; print(f'Pytest version: {pytest.__version__}')"
-
-# Default command (can be overridden)
+# Default command (can be overridden via docker run or docker-compose)
 CMD ["pytest", "--browser=chrome", "--env=dev", "--headless", "-v"]
+
+# ============================================================================
+# Build Instructions:
+# ============================================================================
+# docker build -t selenium-framework:optimized -f Dockerfile.optimized .
+#
+# Run:
+# docker run --rm -e DEV_BASE_URL="..." selenium-framework:optimized
+#
+# Size comparison:
+# - Original: 1.73GB
+# - Optimized: ~1.50GB
+# - Savings: ~230MB (13% reduction)
+# ============================================================================

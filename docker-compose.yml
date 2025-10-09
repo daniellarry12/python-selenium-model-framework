@@ -17,6 +17,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: selenium-framework:latest
     container_name: selenium-tests
 
     # Environment variables (override with .env file)

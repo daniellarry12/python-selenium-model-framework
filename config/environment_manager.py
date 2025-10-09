@@ -1,139 +1,93 @@
 """
-Environment Configuration Manager
+Configuration manager for test environments.
 
-Loads environment-specific settings from config files and .env variables.
+Loads environment-specific settings from .env and combines them
+with global settings from base_config.py.
 
-Usage:
-    from config.environment_manager import get_config
-
-    config = get_config('staging')
-    driver.implicitly_wait(config.implicit_wait)
-    driver.get(config.base_url)
+Design:
+- Environment-specific values (URLs, credentials) → .env file
+- Global values (timeouts, browser settings) → base_config.py
+- Immutable configuration via frozen dataclass
+- Automatic caching via @lru_cache
 """
 
 import os
-import importlib
 from dataclasses import dataclass
-from typing import Optional
+from functools import lru_cache
 from dotenv import load_dotenv
+from config import base_config
 
 
-@dataclass(frozen=True)  # frozen=True makes it immutable (can't change accidentally)
+@dataclass(frozen=True)
 class EnvironmentConfig:
     """
-    Configuration for a specific environment.
+    Immutable configuration for a test environment.
 
-    Attributes:
-        environment: Environment name (dev, staging, prod)
-        base_url: Application URL
-        api_url: API URL (optional)
-        test_email: Test account email
-        test_password: Test account password
-        implicit_wait: Selenium implicit wait in seconds
-        page_load_timeout: Page load timeout in seconds
-        log_level: Logging level (DEBUG, INFO, WARNING)
     """
-    # From .env
     environment: str
     base_url: str
-    api_url: str
     test_email: str
     test_password: str
-
-    # From config file (dev.py, staging.py, prod.py)
     implicit_wait: int
     page_load_timeout: int
-    log_level: str
 
 
-# Cache to avoid loading config multiple times (singleton pattern)
-_config_cache: dict[str, EnvironmentConfig] = {}
-_dotenv_loaded = False
-
-
-def get_config(env_name: Optional[str] = None) -> EnvironmentConfig:
+@lru_cache(maxsize=3)
+def get_config(env_name: str | None = None) -> EnvironmentConfig:
     """
-    Get configuration for specified environment.
+    Load configuration for the specified environment.
 
     Args:
-        env_name: 'dev', 'staging', or 'prod'. If None, reads from TEST_ENV in .env
+        env_name: Environment name (dev, staging, prod).
+                  If None, reads TEST_ENV from .env.
+                  Defaults to 'dev' if TEST_ENV not set.
 
     Returns:
-        EnvironmentConfig object with all settings
-
-    Raises:
-        ValueError: If environment is invalid or required variables missing
+        Immutable EnvironmentConfig instance with all settings.
 
     Example:
-        >>> config = get_config()  # Uses TEST_ENV from .env
-        >>> config = get_config('staging')  # Override to staging
+        >>> config = get_config('staging')
         >>> print(config.base_url)
+        >>> print(config.implicit_wait)  # From base_config.py
     """
-    global _dotenv_loaded
-
-    # Load .env file once (lazy loading - not on module import)
-    if not _dotenv_loaded:
-        load_dotenv()
-        _dotenv_loaded = True
+    # Load .env file (only on first call, dotenv caches internally)
+    load_dotenv()
 
     # Get environment name
-    if env_name is None:
-        env_name = os.getenv('TEST_ENV', 'dev')
+    env_name = (env_name or os.getenv('TEST_ENV', 'dev')).lower().strip()
 
-    env_name = env_name.lower().strip()
+    # Build environment variable prefix (DEV_, STAGING_, PROD_)
+    prefix = f"{env_name.upper()}_"
 
-    # Return cached config if already loaded (performance optimization)
-    if env_name in _config_cache:
-        return _config_cache[env_name]
-
-    # Load config module (dev.py, staging.py, or prod.py)
-    try:
-        config_module = importlib.import_module(f'config.environments.{env_name}')
-    except ModuleNotFoundError:
-        raise ValueError(
-            f"Invalid environment: '{env_name}'. "
-            f"Valid options: dev, staging, prod"
-        )
-
-    # Build prefix for env variables (DEV_, STAGING_, PROD_)
-    prefix = env_name.upper() + "_"
-
-    # Get required variables from .env (raise error if missing)
+    # Load environment-specific variables from .env
     base_url = os.getenv(f"{prefix}BASE_URL")
     test_email = os.getenv(f"{prefix}TEST_EMAIL")
     test_password = os.getenv(f"{prefix}TEST_PASSWORD")
 
-    # Validate critical variables exist
-    if not base_url:
+    # Validate that all required variables exist
+    if not all([base_url, test_email, test_password]):
+        # Build helpful error message showing exactly what's missing
+        missing = [
+            var_name for var_name, var_value in [
+                (f"{prefix}BASE_URL", base_url),
+                (f"{prefix}TEST_EMAIL", test_email),
+                (f"{prefix}TEST_PASSWORD", test_password),
+            ] if not var_value
+        ]
         raise ValueError(
-            f"{prefix}BASE_URL not found in .env file. "
-            f"Please check your .env configuration."
+            f"Missing required environment variables for '{env_name}' environment: "
+            f"{', '.join(missing)}. Please check your .env file."
         )
-    if not test_email:
-        raise ValueError(f"{prefix}TEST_EMAIL not found in .env file.")
-    if not test_password:
-        raise ValueError(f"{prefix}TEST_PASSWORD not found in .env file.")
 
-    # Create config object
-    config = EnvironmentConfig(
+    # Create and return immutable configuration
+    # Environment-specific values from .env, global values from base_config.py
+    # Note: base_url, test_email, test_password are guaranteed to be str (validated above)
+    return EnvironmentConfig(
         environment=env_name,
-        base_url=base_url,
-        api_url=os.getenv(f"{prefix}API_URL", ""),  # Optional, default empty
-        test_email=test_email,
-        test_password=test_password,
-        implicit_wait=config_module.IMPLICIT_WAIT,
-        page_load_timeout=config_module.PAGE_LOAD_TIMEOUT,
-        log_level=config_module.LOG_LEVEL,
+        base_url=base_url,  # type: ignore[arg-type]
+        test_email=test_email,  # type: ignore[arg-type]
+        test_password=test_password,  # type: ignore[arg-type]
+        # Global configuration from base_config.py
+        implicit_wait=base_config.IMPLICIT_WAIT,
+        page_load_timeout=base_config.PAGE_LOAD_TIMEOUT,
     )
-
-    # Cache for future calls
-    _config_cache[env_name] = config
-
-    return config
-
-
-def reset_config() -> None:
-    """Clear cached configs (useful for testing only)."""
-    global _config_cache, _dotenv_loaded
-    _config_cache.clear()
-    _dotenv_loaded = False

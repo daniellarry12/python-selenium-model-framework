@@ -63,7 +63,6 @@ class DriverManager:
             **browser_options: Additional browser-specific options
                 - prefs (dict): Custom browser preferences
                 - binary_location (str): Custom browser binary path
-                - service_args (list): Additional service arguments
 
         Example:
             >>> config = get_config('staging')

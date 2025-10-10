@@ -20,6 +20,7 @@ import pytest
 from pages.login_page import LoginPage
 from tests.base_test import BaseTest
 from utilities.test_data import TestData
+from config.base_config import WaitTime
 
 
 @pytest.mark.smoke
@@ -52,7 +53,7 @@ class TestLogin(BaseTest):
         my_account_page = login_page.click_login_button()
 
         # Wait for navigation to complete
-        my_account_page.wait_for_url_contains(expected_url_fragment, timeout=10)
+        my_account_page.wait_for_url_contains(expected_url_fragment, timeout=WaitTime.DEFAULT.value)
 
         # Assert - Multiple validations for robust verification
         actual_title = my_account_page.get_title()
@@ -85,7 +86,7 @@ class TestLogin(BaseTest):
         login_page.log_into_application(invalid_email, invalid_password)
 
         # Assert - Warning message appears (with explicit wait)
-        assert login_page.is_warning_message_displayed(timeout=5), (
+        assert login_page.is_warning_message_displayed(timeout=WaitTime.SHORT.value), (
             "Warning message should be displayed for invalid credentials"
         )
 
@@ -128,7 +129,7 @@ class TestLogin(BaseTest):
         login_page.log_into_application(email, password)
 
         # Assert
-        assert login_page.is_warning_message_displayed(timeout=5), (
+        assert login_page.is_warning_message_displayed(timeout=WaitTime.SHORT.value), (
             f"Warning should appear for email='{email}' password='{password}'"
         )
 

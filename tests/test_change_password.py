@@ -20,6 +20,7 @@ from pages.login_page import LoginPage
 from pages.change_password_page import ChangePasswordPage
 from tests.base_test import BaseTest
 from utilities.test_data import TestData
+from config.base_config import WaitTime
 
 
 @pytest.mark.regression
@@ -61,19 +62,19 @@ class TestChangePassword(BaseTest):
         my_account_page = login_page.click_login_button()
 
         # Wait for account page to load (explicit wait - no sleep!)
-        my_account_page.wait_for_url_contains("account/account", timeout=10)
+        my_account_page.wait_for_url_contains("account/account", timeout=WaitTime.DEFAULT.value)
 
         # Act - Navigate to Change Password page using RightMenuComponent
         my_account_page.click_right_menu_page("Password")
 
         # Wait for password page to load
-        change_password_page.wait_for_url_contains("account/password", timeout=10)
+        change_password_page.wait_for_url_contains("account/password", timeout=WaitTime.DEFAULT.value)
 
         # Act - Attempt password change with mismatch
         change_password_page.change_password(new_password, mismatched_confirm)
 
         # Assert - Verify error message appears (with explicit wait)
-        assert change_password_page.is_confirmation_error_displayed(timeout=5), (
+        assert change_password_page.is_confirmation_error_displayed(timeout=WaitTime.SHORT.value), (
             "Confirmation error message should be displayed when passwords don't match"
         )
 

@@ -11,17 +11,42 @@ Design Pattern: Factory Method Pattern
 - Hides complexity of driver/service configuration
 """
 
+from enum import Enum
 from selenium import webdriver
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.firefox.service import Service as FirefoxService
 from selenium.webdriver.edge.service import Service as EdgeService
 import shutil
-from typing import Optional
+from typing import Union
 
 from drivers.browser_options.chrome_options import ChromeOptionsBuilder
 from drivers.browser_options.firefox_options import FirefoxOptionsBuilder
 from drivers.browser_options.edge_options import EdgeOptionsBuilder
+
+
+class Browser(Enum):
+    """
+    Supported browsers for test automation.
+
+    Using an Enum provides:
+    - Type safety: Impossible to pass invalid browser names
+    - IDE autocomplete: Browser.CHROME autocompletes
+    - Centralized values: Change browser name in one place
+    - Self-documenting: Clear what browsers are supported
+
+    Example:
+        >>> driver = BrowserFactory.create(Browser.CHROME)
+        >>> driver = BrowserFactory.create("chrome")  # Also works
+    """
+    CHROME = "chrome"
+    FIREFOX = "firefox"
+    EDGE = "edge"
+
+    @classmethod
+    def values(cls) -> list:
+        """Get list of all browser values"""
+        return [browser.value for browser in cls]
 
 
 class BrowserFactory:
@@ -41,10 +66,10 @@ class BrowserFactory:
         >>> driver = BrowserFactory.create("chrome", headless=False, binary_location="/usr/bin/chromium")
     """
 
-    SUPPORTED_BROWSERS = ["chrome", "firefox", "edge"]
+    SUPPORTED_BROWSERS = Browser.values()
 
     @staticmethod
-    def create(browser: str, headless: bool = False, **kwargs) -> WebDriver:
+    def create(browser: Union[str, Browser], headless: bool = False, **kwargs) -> WebDriver:
         """
         Create a WebDriver instance for the specified browser.
 
@@ -52,7 +77,9 @@ class BrowserFactory:
         to browser-specific creation methods internally.
 
         Args:
-            browser: Browser name ('chrome', 'firefox', 'edge')
+            browser: Browser name (string or Browser enum)
+                - String: 'chrome', 'firefox', 'edge'
+                - Enum: Browser.CHROME, Browser.FIREFOX, Browser.EDGE
             headless: Whether to run in headless mode
             **kwargs: Additional browser-specific options:
                 - binary_location (str): Custom browser binary path
@@ -65,24 +92,26 @@ class BrowserFactory:
             ValueError: If browser is not supported
 
         Example:
+            >>> # Both styles work:
+            >>> driver = BrowserFactory.create(Browser.CHROME, headless=True)
             >>> driver = BrowserFactory.create('chrome', headless=True)
-            >>> driver = BrowserFactory.create('firefox', headless=False)
-            >>> driver = BrowserFactory.create('edge', headless=True)
         """
-        browser = browser.lower().strip()
+        # Convert Browser enum to string if needed
+        browser_value = browser.value if isinstance(browser, Browser) else browser
+        browser_value = browser_value.lower().strip()
 
-        if browser not in BrowserFactory.SUPPORTED_BROWSERS:
+        if browser_value not in BrowserFactory.SUPPORTED_BROWSERS:
             raise ValueError(
                 f"Unsupported browser: '{browser}'. "
                 f"Valid options: {', '.join(BrowserFactory.SUPPORTED_BROWSERS)}"
             )
 
         # Delegate to specific creation method
-        if browser == "chrome":
+        if browser_value == Browser.CHROME.value:
             return BrowserFactory._create_chrome(headless, **kwargs)
-        elif browser == "firefox":
+        elif browser_value == Browser.FIREFOX.value:
             return BrowserFactory._create_firefox(headless, **kwargs)
-        elif browser == "edge":
+        else:  # browser_value == Browser.EDGE.value
             return BrowserFactory._create_edge(headless, **kwargs)
 
     @staticmethod

@@ -10,13 +10,16 @@ Design Patterns:
 - DRY Principle
 """
 
-from typing import List
+from typing import List, Optional, Tuple, Union
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import TimeoutException, NoAlertPresentException
+
+# Type alias for locators - makes code more readable and maintainable
+Locator = Tuple[str, str]
 
 
 class BasePage:
@@ -63,16 +66,19 @@ class BasePage:
             element = self.find(self.email_field)
         """
         # Handle both calling styles: find(By.ID, "x") and find((By.ID, "x"))
+        final_locator: Locator
         if len(locator) == 1 and isinstance(locator[0], tuple):
-            locator = locator[0]
+            final_locator = locator[0]
+        else:
+            final_locator = locator  # type: ignore
 
         try:
             return self.wait.until(
-                EC.presence_of_element_located(locator)
+                EC.presence_of_element_located(final_locator)
             )
         except TimeoutException:
             raise TimeoutException(
-                f"Element {locator} not found after {self.timeout}s. "
+                f"Element {final_locator} not found after {self.timeout}s. "
                 f"URL: {self.driver.current_url}"
             )
 
@@ -91,16 +97,19 @@ class BasePage:
             items = self.find_all(self.product_items)
         """
         # Handle both calling styles
+        final_locator: Locator
         if len(locator) == 1 and isinstance(locator[0], tuple):
-            locator = locator[0]
+            final_locator = locator[0]
+        else:
+            final_locator = locator  # type: ignore
 
         try:
-            self.wait.until(EC.presence_of_element_located(locator))
-            return self.driver.find_elements(*locator)
+            self.wait.until(EC.presence_of_element_located(final_locator))
+            return self.driver.find_elements(*final_locator)
         except TimeoutException:
             return []
 
-    def wait_until_visible(self, *locator, timeout: int = None) -> WebElement:
+    def wait_until_visible(self, *locator, timeout: Optional[int] = None) -> WebElement:
         """
         Wait for element to be visible.
 
@@ -116,13 +125,16 @@ class BasePage:
             modal = self.wait_until_visible(self.success_modal)
         """
         # Handle both calling styles
+        final_locator: Locator
         if len(locator) == 1 and isinstance(locator[0], tuple):
-            locator = locator[0]
+            final_locator = locator[0]
+        else:
+            final_locator = locator  # type: ignore
 
         wait = WebDriverWait(self.driver, timeout or self.timeout)
-        return wait.until(EC.visibility_of_element_located(locator))
+        return wait.until(EC.visibility_of_element_located(final_locator))
 
-    def wait_until_invisible(self, *locator, timeout: int = None) -> bool:
+    def wait_until_invisible(self, *locator, timeout: Optional[int] = None) -> Union[bool, WebElement]:
         """
         Wait for element to become invisible.
 
@@ -140,13 +152,16 @@ class BasePage:
             self.wait_until_invisible(self.loading_spinner)
         """
         # Handle both calling styles
+        final_locator: Locator
         if len(locator) == 1 and isinstance(locator[0], tuple):
-            locator = locator[0]
+            final_locator = locator[0]
+        else:
+            final_locator = locator  # type: ignore
 
         wait = WebDriverWait(self.driver, timeout or self.timeout)
-        return wait.until(EC.invisibility_of_element_located(locator))
+        return wait.until(EC.invisibility_of_element_located(final_locator))
 
-    def wait_until_clickable(self, *locator, timeout: int = None) -> WebElement:
+    def wait_until_clickable(self, *locator, timeout: Optional[int] = None) -> WebElement:
         """
         Wait for element to be clickable.
 
@@ -162,11 +177,14 @@ class BasePage:
             button = self.wait_until_clickable(self.submit_btn)
         """
         # Handle both calling styles
+        final_locator: Locator
         if len(locator) == 1 and isinstance(locator[0], tuple):
-            locator = locator[0]
+            final_locator = locator[0]
+        else:
+            final_locator = locator  # type: ignore
 
         wait = WebDriverWait(self.driver, timeout or self.timeout)
-        return wait.until(EC.element_to_be_clickable(locator))
+        return wait.until(EC.element_to_be_clickable(final_locator))
 
     # ========================================================================
     # CATEGORY 2: Element Interaction
@@ -193,6 +211,8 @@ class BasePage:
         """
         Type text into input field (appends to existing text).
 
+        Waits for element to be visible before typing.
+
         Args:
             locator: (By.STRATEGY, "value")
             value: Text to type
@@ -200,12 +220,14 @@ class BasePage:
         Example:
             self.type(self.search_field, "automation")
         """
-        element = self.find(*locator)
+        element = self.wait_until_visible(*locator)
         element.send_keys(value)
 
     def clear_and_type(self, locator, value: str) -> None:
         """
         Clear field and type text (most common use case).
+
+        Waits for element to be visible before clearing and typing.
 
         Args:
             locator: (By.STRATEGY, "value")
@@ -214,7 +236,7 @@ class BasePage:
         Example:
             self.clear_and_type(self.email_field, "user@test.com")
         """
-        element = self.find(*locator)
+        element = self.wait_until_visible(*locator)
         element.clear()
         element.send_keys(value)
 
@@ -302,7 +324,7 @@ class BasePage:
             message = self.get_text(*self.error_message)
         """
         element = self.find(*locator)
-        return element.text.strip()
+        return (element.text or "").strip()
 
     def get_attribute(self, locator, attribute: str) -> str:
         """
@@ -319,7 +341,7 @@ class BasePage:
             url = self.get_attribute(self.link, "href")
         """
         element = self.find(*locator)
-        return element.get_attribute(attribute)
+        return element.get_attribute(attribute) or ""
 
     def get_value(self, *locator) -> str:
         """
@@ -354,10 +376,11 @@ class BasePage:
                 print("Error occurred")
         """
         # Handle both calling styles
+        final_locator: Locator
         if len(locator) == 1 and isinstance(locator[0], tuple):
             final_locator = locator[0]
         else:
-            final_locator = locator
+            final_locator = locator  # type: ignore
 
         try:
             wait = WebDriverWait(self.driver, timeout)
@@ -450,7 +473,7 @@ class BasePage:
         """
         return self.driver.title
 
-    def wait_for_url_contains(self, url_fragment: str, timeout: int = None) -> bool:
+    def wait_for_url_contains(self, url_fragment: str, timeout: Optional[int] = None) -> bool:
         """
         Wait for URL to contain specific text.
 
@@ -469,7 +492,7 @@ class BasePage:
         wait = WebDriverWait(self.driver, timeout or self.timeout)
         return wait.until(EC.url_contains(url_fragment))
 
-    def wait_for_title_contains(self, title_fragment: str, timeout: int = None) -> bool:
+    def wait_for_title_contains(self, title_fragment: str, timeout: Optional[int] = None) -> bool:
         """
         Wait for title to contain specific text.
 

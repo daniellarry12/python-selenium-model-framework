@@ -14,9 +14,9 @@ Usage:
 
     config = get_config('dev')
     manager = DriverManager('chrome', config, headless=True)
-    driver = manager.start()
+    driver = manager.driver
     # ... use driver ...
-    manager.stop()
+    manager.quit()
 """
 
 from drivers.driver_manager import DriverManager

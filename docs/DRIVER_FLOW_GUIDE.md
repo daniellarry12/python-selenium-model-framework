@@ -52,7 +52,7 @@ El framework utiliza un **patrón de capas** para gestionar WebDriver:
 | Componente | Archivo | Responsabilidad | ¿Por qué existe? |
 |------------|---------|-----------------|------------------|
 | **BrowserFactory** | `drivers/browser_factory.py` | Crear drivers crudos (Chrome, Firefox, Edge) | Factory Pattern - Centraliza la creación |
-| **DriverManager** | `drivers/driver_manager.py` | Configurar driver (timeouts, navegación, cleanup) | Facade Pattern - Simplifica la gestión del ciclo de vida |
+| **DriverManager** | `drivers/driver_manager.py` | Configurar driver (timeouts, navegación, cleanup) | Simplifica la gestión del ciclo de vida |
 | **conftest.py** | `conftest.py` | Integración con pytest (fixtures, CLI, parametrización) | Pytest-specific - No puede estar en DriverManager |
 | **BaseTest** | `tests/base_test.py` | Clase base con fixture `initialize_driver` | DRY - Evita repetir `@pytest.mark.usefixtures` en cada test |
 
@@ -144,9 +144,9 @@ def initialize_driver(
     )
 
     # ========================================
-    # PUNTO CLAVE 2: Iniciar el driver
+    # PUNTO CLAVE 2: Driver ya está listo
     # ========================================
-    driver = manager.start()  # ← ¡AQUÍ SE CREA Y CONFIGURA EL DRIVER!
+    driver = manager.driver  # ← Driver creado y configurado en __init__
 
     # ========================================
     # PUNTO CLAVE 3: Inyección a la clase
@@ -172,53 +172,47 @@ def initialize_driver(
     print(f"\n{'='*70}")
     print(f"🧹 [Teardown] Closing {browser_name} driver...")
     print(f"{'='*70}")
-    manager.stop()  # ← Limpieza (driver.quit())
+    manager.quit()  # ← Limpieza (driver.quit())
 ```
 
-### Paso 4: ¿Qué Hace `manager.start()`?
+### Paso 4: ¿Qué Hace `DriverManager.__init__()`?
 
-**Ubicación:** `drivers/driver_manager.py:84-138`
+**Ubicación:** `drivers/driver_manager.py:25-56`
 
 ```python
-def start(self) -> WebDriver:
+def __init__(self, browser: str, config: EnvironmentConfig, headless: bool = False, **browser_options):
     """
-    ESTE ES EL MÉTODO QUE CREA Y CONFIGURA TODO.
+    ESTE ES EL CONSTRUCTOR QUE CREA Y CONFIGURA TODO.
     """
-    if self._driver is not None:
-        raise RuntimeError(
-            "Driver already started. Call stop() before starting again."
-        )
 
     # ====================================================================
     # PASO 4.1: Crear driver via BrowserFactory
     # ====================================================================
-    self._driver = BrowserFactory.create(
-        browser=self.browser,      # "chrome"
-        headless=self.headless,    # True/False
-        **self.browser_options     # Opciones adicionales
+    self.driver = BrowserFactory.create(
+        browser=browser,      # "chrome"
+        headless=headless,    # True/False
+        **browser_options     # Opciones adicionales
     )
-    # Resultado: self._driver = <selenium.webdriver.Chrome instance>
+    # Resultado: self.driver = <selenium.webdriver.Chrome instance>
 
     # ====================================================================
     # PASO 4.2: Aplicar timeouts del ambiente
     # ====================================================================
     # Implicit wait: tiempo de espera para encontrar elementos
-    self._driver.implicitly_wait(self.config.implicit_wait)  # 10 segundos
+    self.driver.implicitly_wait(config.implicit_wait)  # 10 segundos
 
     # Page load timeout: tiempo máximo para cargar una página
-    self._driver.set_page_load_timeout(self.config.page_load_timeout)  # 30 segundos
+    self.driver.set_page_load_timeout(config.page_load_timeout)  # 30 segundos
 
     # ====================================================================
     # PASO 4.3: Navegar a la URL base
     # ====================================================================
-    self._driver.get(self.config.base_url)  # https://tutorialsninja.com/demo
+    self.driver.get(config.base_url)  # https://tutorialsninja.com/demo
 
     # ====================================================================
     # PASO 4.4: Maximizar ventana (consistencia)
     # ====================================================================
-    self._driver.maximize_window()
-
-    return self._driver  # ← Retorna el driver configurado
+    self.driver.maximize_window()
 ```
 
 ### Paso 5: ¿Qué Hace `BrowserFactory.create()`?
@@ -286,30 +280,30 @@ def test_valid_credentials(self):
 ### Paso 7: Teardown (Limpieza)
 
 ```python
-# conftest.py:177-181
+# conftest.py:168-172
 yield driver  # ← El test se ejecuta aquí
 
 # Después del test (éxito o fallo):
-manager.stop()  # ← Llama a driver.quit()
+manager.quit()  # ← Llama a driver.quit()
 ```
 
-**¿Qué hace `manager.stop()`?**
+**¿Qué hace `manager.quit()`?**
 
-**Ubicación:** `drivers/driver_manager.py:140-166`
+**Ubicación:** `drivers/driver_manager.py:58-70`
 
 ```python
-def stop(self) -> None:
+def quit(self) -> None:
     """
     Limpieza segura del driver.
     """
-    if self._driver:
+    if hasattr(self, 'driver') and self.driver:
         try:
-            self._driver.quit()  # ← Cierra el navegador
+            self.driver.quit()  # ← Cierra el navegador
         except Exception as e:
             # Log pero no falla el test
             print(f"Warning: Error during driver cleanup: {e}")
         finally:
-            self._driver = None  # ← Reset para permitir nuevo start()
+            self.driver = None
 ```
 
 ---
@@ -318,10 +312,8 @@ def stop(self) -> None:
 
 ### 1. DriverManager (`drivers/driver_manager.py`)
 
-**Patrón:** Facade Pattern
-
 **Responsabilidades:**
-- Gestionar el ciclo de vida del WebDriver
+- Crear y configurar el WebDriver inmediatamente
 - Configurar timeouts y navegación
 - Proveer cleanup seguro
 
@@ -330,24 +322,11 @@ def stop(self) -> None:
 ```python
 class DriverManager:
     def __init__(self, browser: str, config: EnvironmentConfig, headless: bool = False):
-        """Inicializa el manager (NO crea el driver todavía)"""
+        """Crea y configura el driver inmediatamente"""
+        # self.driver está listo para usar
 
-    def start(self) -> WebDriver:
-        """Crea, configura y retorna driver listo para usar"""
-
-    def stop(self) -> None:
+    def quit(self) -> None:
         """Cierra el driver de forma segura"""
-
-    @property
-    def driver(self) -> WebDriver:
-        """Accede al driver activo (debe llamar start() primero)"""
-
-    # Context Manager support
-    def __enter__(self) -> WebDriver:
-        """Permite usar con 'with' statement"""
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Cleanup automático al salir del 'with'"""
 ```
 
 **Ejemplo de Uso Standalone (sin pytest):**
@@ -356,20 +335,15 @@ class DriverManager:
 from drivers.driver_manager import DriverManager
 from config.environment_manager import get_config
 
-# Opción 1: Manual start/stop
+# Uso simple
 config = get_config('dev')
 manager = DriverManager('chrome', config, headless=True)
-driver = manager.start()
+driver = manager.driver  # Ya está listo
 try:
     driver.get("https://example.com")
     # ... hacer algo ...
 finally:
-    manager.stop()
-
-# Opción 2: Context manager (recomendado)
-with DriverManager('chrome', config, headless=True) as driver:
-    driver.get("https://example.com")
-    # Cleanup automático al salir
+    manager.quit()
 ```
 
 ### 2. BrowserFactory (`drivers/browser_factory.py`)
@@ -509,36 +483,33 @@ manager = DriverManager(
     headless=False
 )
 
-# 4.2: Iniciar driver
-driver = manager.start()  # ← ¡VER PASO 5!
+# 4.2: Driver ya está creado y configurado
+driver = manager.driver  # Ya listo (creado en __init__)
 
 # 4.3: Inyectar a clase
 request.cls.driver = driver
 # Ahora: TestLogin.driver = <selenium.webdriver.Chrome>
 
 # ============================================================================
-# PASO 5: manager.start() (driver_manager.py:84-138)
+# PASO 5: DriverManager.__init__() (driver_manager.py:25-56)
 # ============================================================================
 
 # 5.1: Crear driver
-self._driver = BrowserFactory.create(
+self.driver = BrowserFactory.create(
     browser="chrome",
     headless=False
 )
 # ← ¡VER PASO 6!
 
 # 5.2: Configurar timeouts
-self._driver.implicitly_wait(10)  # config.implicit_wait
-self._driver.set_page_load_timeout(30)  # config.page_load_timeout
+self.driver.implicitly_wait(10)  # config.implicit_wait
+self.driver.set_page_load_timeout(30)  # config.page_load_timeout
 
 # 5.3: Navegar a base URL
-self._driver.get("https://tutorialsninja.com/demo")  # config.base_url
+self.driver.get("https://tutorialsninja.com/demo")  # config.base_url
 
 # 5.4: Maximizar ventana
-self._driver.maximize_window()
-
-# 5.5: Retornar
-return self._driver
+self.driver.maximize_window()
 
 # ============================================================================
 # PASO 6: BrowserFactory.create() (browser_factory.py)
@@ -579,18 +550,18 @@ def test_valid_credentials(self):
 # ============================================================================
 # Fixture hace yield, test termina, ahora ejecuta cleanup
 
-manager.stop()
+manager.quit()
 
 # ============================================================================
-# PASO 9: manager.stop() (driver_manager.py:140-166)
+# PASO 9: manager.quit() (driver_manager.py:58-70)
 # ============================================================================
-if self._driver:
+if hasattr(self, 'driver') and self.driver:
     try:
-        self._driver.quit()  # Cierra navegador
+        self.driver.quit()  # Cierra navegador
     except Exception as e:
         print(f"Warning: Error during cleanup: {e}")
     finally:
-        self._driver = None  # Reset
+        self.driver = None
 
 # ============================================================================
 # FIN
@@ -650,10 +621,9 @@ def initialize_driver(config, browser_name, headless):
 @pytest.fixture
 def initialize_driver(config, browser_name, headless):
     manager = DriverManager(browser_name, config, headless)
-    driver = manager.start()
-    request.cls.driver = driver
-    yield driver
-    manager.stop()
+    request.cls.driver = manager.driver
+    yield manager.driver
+    manager.quit()
 ```
 
 ---
@@ -715,12 +685,15 @@ from config.environment_manager import get_config
 # Cargar config
 config = get_config('prod')
 
-# Usar como context manager
-with DriverManager('firefox', config, headless=True) as driver:
+# Uso simple
+manager = DriverManager('firefox', config, headless=True)
+driver = manager.driver
+try:
     driver.get("https://example.com")
     title = driver.title
     print(f"Title: {title}")
-    # Cleanup automático al salir del 'with'
+finally:
+    manager.quit()
 ```
 
 ---
@@ -768,7 +741,7 @@ def initialize_driver(...):
     yield driver  # ← Pausa aquí, ejecuta test, luego continúa
 
     # ========== TEARDOWN (después del test) ==========
-    manager.stop()
+    manager.quit()
     # Se ejecuta INCLUSO si el test falla
 ```
 
@@ -919,13 +892,17 @@ from config.environment_manager import get_config
 def main():
     config = get_config('prod')
 
-    with DriverManager('chrome', config, headless=True) as driver:
+    manager = DriverManager('chrome', config, headless=True)
+    driver = manager.driver
+    try:
         driver.get("https://example.com")
 
         # Scraping logic
         elements = driver.find_elements(By.CSS_SELECTOR, ".item")
         for elem in elements:
             print(elem.text)
+    finally:
+        manager.quit()
 
 if __name__ == "__main__":
     main()
@@ -995,7 +972,7 @@ Usuario              Pytest           conftest.py         DriverManager      Bro
   │                    │                    │                    │                  │              │
   │                    │ test termina       │                    │                  │              │
   │                    │                    │                    │                  │              │
-  │                    │                    │ manager.stop()     │                  │              │
+  │                    │                    │ manager.quit()     │                  │              │
   │                    │                    │───────────────────>│                  │              │
   │                    │                    │                    │                  │              │
   │                    │                    │                    │ driver.quit()    │              │
@@ -1088,7 +1065,7 @@ Inyecta a self.driver
     ↓
 Test usa self.driver
     ↓
-Teardown: manager.stop() → driver.quit()
+Teardown: manager.quit() → driver.quit()
 ```
 
 ---
